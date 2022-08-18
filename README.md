@@ -1,5 +1,8 @@
 # Teachables
 
+![model_jumping](https://user-images.githubusercontent.com/12436309/185417845-b964cba6-d14f-4508-912d-b1dbb38529bc.gif)
+
+
 Lecture slides and jupyter notebooks for learning and experimenting with probabilistic models.
 Includes lectures on:
   - Probabilistic programming in pymc3
@@ -12,3 +15,4 @@ Includes lectures on:
       - Advanced example : Multi-changepoint model with mixture emissions for repeated timeseries
   - Gaussian Mixture Models and Hidden Markov Models
     - Exercise on clustering using GMMs
+
