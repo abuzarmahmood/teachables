@@ -15,4 +15,5 @@ Includes lectures on:
       - Advanced example : Multi-changepoint model with mixture emissions for repeated timeseries
   - Gaussian Mixture Models and Hidden Markov Models
     - Exercise on clustering using GMMs
+  - [More on Bayesian Changepoint Modelling](https://github.com/abuzarmahmood/pymcon_bayesian_changepoint)
 
