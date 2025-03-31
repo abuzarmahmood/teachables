@@ -17,3 +17,11 @@ Includes lectures on:
     - Exercise on clustering using GMMs
   - [More on Bayesian Changepoint Modelling](https://github.com/abuzarmahmood/pymcon_bayesian_changepoint)
 
+## Cloning the Repository
+
+To clone this repository, use the following command:
+
+```bash
+git clone https://github.com/abuzarmahmood/teachables.git
+```
+
