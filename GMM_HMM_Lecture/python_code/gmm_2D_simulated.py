@@ -67,27 +67,32 @@ plt.show()
 gm = GaussianMixture(n_components=components)  # Create GMM with same number of components as generated data
 gm.fit(samples)  # Estimate model parameters (means, covariances, weights)
 
-# Plot output
-# Figure out plot range
+# Plot the fitted GMM with probability contours
+# First, determine the plot range based on data extents
 minx = np.min(samples[:, 0])
 maxx = np.max(samples[:, 0])
 miny = np.min(samples[:, 1])
 maxy = np.max(samples[:, 1])
 
-# Create meshgrid
-x1 = np.arange(minx, maxx, 0.1)
-x2 = np.arange(miny, maxy, 0.1)
-X1, X2 = np.meshgrid(x1, x2)
-X = np.column_stack([X1.ravel(), X2.ravel()])
+# Create a grid of points to evaluate the GMM probability density
+x1 = np.arange(minx, maxx, 0.1)  # Grid points along x-axis
+x2 = np.arange(miny, maxy, 0.1)  # Grid points along y-axis
+X1, X2 = np.meshgrid(x1, x2)  # Create 2D grid
+X = np.column_stack([X1.ravel(), X2.ravel()])  # Reshape to 2D array of points
 
-# Evaluate PDF
-y = np.exp(gm.score_samples(X))
-y = y.reshape(len(x2), len(x1))
+# Evaluate the probability density function (PDF) at each grid point
+y = np.exp(gm.score_samples(X))  # Convert log probability to actual probability
+y = y.reshape(len(x2), len(x1))  # Reshape to match grid dimensions
 
-# Plot!
+# Create visualization with data points and probability contours
 plt.figure(figsize=(10, 8))
-plt.scatter(samples[:, 0], samples[:, 1], s=10, marker='.')
-plt.contour(x1, x2, y, 100, cmap=cm.viridis)
-plt.title('2D GMM with Contours')
-plt.colorbar()
+# Plot original data points
+plt.scatter(samples[:, 0], samples[:, 1], s=10, marker='.', alpha=0.5, label='Data points')
+# Plot probability contours of the fitted GMM
+contour = plt.contour(x1, x2, y, 100, cmap=cm.viridis)
+plt.title('2D GMM with Probability Density Contours')
+plt.xlabel('Dimension 1')
+plt.ylabel('Dimension 2')
+plt.colorbar(label='Probability Density')
+plt.legend()
 plt.show()
