@@ -71,8 +71,13 @@ TRANS_GUESS = np.eye(trans.shape[0]) + np.random.rand(*trans.shape) * 0.05
 
 ## TRY RANDOM GUESS FOR EMISSIONS VS. MEAN OF DATA
 ## AND SEE THE DIFFERENCE
-# EMIS_GUESS = np.random.rand(*emis.shape)
-EMIS_GUESS = np.tile(X.mean(axis=0), (2, 1)) + np.random.rand(*emis.shape) * 0.05 
+USE_RANDOM_EMIS_GUESS = False
+if USE_RANDOM_EMIS_GUESS:
+    EMIS_GUESS = np.random.rand(*emis.shape)
+    print("Using random guess for emissions")
+else:
+    EMIS_GUESS = np.tile(X.mean(axis=0), (2, 1)) + np.random.rand(*emis.shape) * 0.05 
+    print("Using mean of data as guess for emissions")
 
 # Make sure numbers add up to 1
 EMIS_GUESS = EMIS_GUESS / np.sum(EMIS_GUESS, axis=1)[:, np.newaxis]
