@@ -27,15 +27,16 @@ max_mult_waveforms = full_waveforms * extrema[:, 1:2]
 full_waveforms[waveforms < 0] = min_mult_waveforms[waveforms < 0]
 full_waveforms[waveforms > 0] = max_mult_waveforms[waveforms > 0]
 
+img_kwargs = dict(interpolation='nearest', aspect='auto')
 # Plot standardized spikes
 if show_plots:
     plt.figure()
     plt.subplot(1, 2, 1)
-    plt.imshow(waveforms)
+    plt.imshow(waveforms, **img_kwargs)
     plt.title('Raw Waveforms')
     plt.colorbar()
     plt.subplot(1, 2, 2)
-    plt.imshow(extrema)
+    plt.imshow(extrema, **img_kwargs)
     plt.title('Waveform Extrema')
     plt.colorbar()
     plt.tight_layout()
@@ -58,14 +59,13 @@ score = pca.fit_transform(waveforms)
 # Plot PCA components as matrix and as scatterplot
 if show_plots:
     plt.figure()
-    plt.subplot(2, 1, 1)
-    plt.imshow(score)
-    plt.title('First 3 PCs for waveforms')
-    plt.colorbar()
-    plt.subplot(2, 1, 2)
-    ax = plt.axes(projection='3d')
-    ax.scatter3D(score[:, 0], score[:, 1], score[:, 2])
-    plt.title("Scatterplot of first 3 PCs")
+    ax0 = plt.subplot(2, 1, 1)
+    im = ax0.imshow(score, **img_kwargs)
+    ax0.set_title('First 3 PCs for waveforms')
+    plt.colorbar(im)
+    ax1 = plt.subplot(2, 1, 2, projection='3d')
+    ax1.scatter3D(score[:, 0], score[:, 1], score[:, 2])
+    ax1.set_title("Scatterplot of first 3 PCs")
     plt.tight_layout()
     plt.show()
 
@@ -79,11 +79,11 @@ standard_features = scaler.fit_transform(features)
 if show_plots:
     plt.figure()
     plt.subplot(2, 1, 1)
-    plt.imshow(features)
+    plt.imshow(features, **img_kwargs)
     plt.title('Raw Features')
     plt.colorbar()
     plt.subplot(2, 1, 2)
-    plt.imshow(standard_features)
+    plt.imshow(standard_features, **img_kwargs)
     plt.title('Standardized Features')
     plt.colorbar()
     plt.tight_layout()
@@ -116,10 +116,10 @@ if show_plots:
     vals = cluster_labels[sort_inds]
     sorted_waveforms = waveforms[sort_inds, :]
     plt.subplot(1, 2, 1)
-    plt.imshow(sorted_waveforms)
+    plt.imshow(sorted_waveforms, **img_kwargs)
     plt.title('Sorted waveforms')
     plt.subplot(1, 2, 2)
-    plt.imshow(np.max(vals) - vals.reshape(-1, 1))  # To show colorbar changing in same direction
+    plt.imshow(np.max(vals) - vals.reshape(-1, 1), **img_kwargs)  # To show colorbar changing in same direction
     plt.title('Cluster labels')
     plt.colorbar()
     plt.tight_layout()
@@ -156,10 +156,10 @@ discrete_colormap = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
 if show_plots:
     plt.figure()
     plt.subplot(2, 2, 1)
-    plt.imshow(sorted_score)
+    plt.imshow(sorted_score, **img_kwargs)
     plt.title('First 3 Sorted PCs for waveforms')
     plt.subplot(2, 2, 2)
-    plt.imshow(np.max(vals) - vals.reshape(-1, 1))  # To show colorbar changing in same direction
+    plt.imshow(np.max(vals) - vals.reshape(-1, 1), **img_kwargs)  # To show colorbar changing in same direction
     plt.title('Cluster labels')
     plt.colorbar()
     ax = plt.subplot(2, 1, 2, projection='3d')
