@@ -7,9 +7,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from hmmlearn import hmm
 import random
+from scipy.special import logsumexp
 
 # If false, shows only the main plot
 show_plots = True
+
+# Number of repeats for model fitting
+n_repeats = 10
 
 # Create transitions matrix with strong self-transition probabilities
 trans = np.array([[0.975, 0.025],
@@ -83,16 +87,79 @@ else:
 EMIS_GUESS = EMIS_GUESS / np.sum(EMIS_GUESS, axis=1)[:, np.newaxis]
 TRANS_GUESS = TRANS_GUESS / np.sum(TRANS_GUESS, axis=1)[:, np.newaxis]
 
-# Estimate parameters
-model_est = hmm.MultinomialHMM(n_components=2, n_iter=1000)
-model_est.startprob_ = np.array([0.5, 0.5])
-model_est.transmat_ = TRANS_GUESS
-model_est.emissionprob_ = EMIS_GUESS
+# Function to calculate BIC for MultinomialHMM
+def calculate_bic(model, X):
+    """Calculate BIC for a fitted HMM model"""
+    # Get log likelihood
+    log_likelihood = model.score(X)
+    
+    # Calculate number of parameters
+    n_components = model.n_components
+    n_features = model.emissionprob_.shape[1]
+    
+    # Parameters: transition probs + emission probs + initial probs - constraints
+    # Constraints: each row of transition and emission matrices sums to 1
+    n_params = (n_components * (n_components - 1)) + (n_components * (n_features - 1)) + (n_components - 1)
+    
+    # Calculate BIC: -2 * log_likelihood + n_params * log(n_samples)
+    n_samples = X.shape[0]
+    bic = -2 * log_likelihood + n_params * np.log(n_samples)
+    
+    return bic
+
+# Function to perform multiple repeats of model fitting
+def perform_multiple_fits(X, n_repeats=10):
+    """Perform multiple repeats of model fitting and return models with their BIC values"""
+    models_with_bic = []
+    
+    for i in range(n_repeats):
+        # Create a new model with random initialization
+        model = hmm.MultinomialHMM(n_components=2, n_iter=1000)
+        model.startprob_ = np.array([0.5, 0.5])
+        
+        # Random initialization for transition matrix with high self-transition
+        trans_guess = np.eye(2) + np.random.rand(2, 2) * 0.05
+        trans_guess = trans_guess / np.sum(trans_guess, axis=1)[:, np.newaxis]
+        model.transmat_ = trans_guess
+        
+        # Random initialization for emission matrix
+        if USE_RANDOM_EMIS_GUESS:
+            emis_guess = np.random.rand(2, 6)
+        else:
+            emis_guess = np.tile(X.mean(axis=0), (2, 1)) + np.random.rand(2, 6) * 0.05
+        
+        emis_guess = emis_guess / np.sum(emis_guess, axis=1)[:, np.newaxis]
+        model.emissionprob_ = emis_guess
+        
+        # Fit the model
+        model.fit(X)
+        
+        # Calculate BIC
+        bic_value = calculate_bic(model, X)
+        
+        # Store model and BIC
+        models_with_bic.append((model, bic_value))
+        
+        print(f"Repeat {i+1}/{n_repeats} - BIC: {bic_value:.2f}")
+    
+    return models_with_bic
 
 # Reshape X for training
 X_train = X.copy()
-model_est.fit(X_train)
 
+# Perform multiple fits
+print(f"Performing {n_repeats} repeats of model fitting...")
+models_with_bic = perform_multiple_fits(X_train, n_repeats)
+
+# Sort models by BIC (lower is better)
+models_with_bic.sort(key=lambda x: x[1])
+
+# Get best model (lowest BIC)
+best_model, best_bic = models_with_bic[0]
+worst_model, worst_bic = models_with_bic[-1]
+
+# Use the best model for further analysis
+model_est = best_model
 TRANS_EST = model_est.transmat_
 EMIS_EST = model_est.emissionprob_
 
@@ -106,7 +173,78 @@ if ind == 0:
 else:
     plot_emis_est = EMIS_EST[1::-1, :]
 
-# Generate plots to see how we did
+# Plot BIC values across all repeats
+if show_plots:
+    # Extract BIC values
+    bic_values = [bic for _, bic in models_with_bic]
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, n_repeats + 1), bic_values, 'o-')
+    plt.xlabel('Repeat Number')
+    plt.ylabel('BIC Value')
+    plt.title('BIC Values Across All Repeats (Lower is Better)')
+    plt.grid(True)
+    plt.show()
+    
+    # Plot best and worst model parameters
+    plt.figure(figsize=(15, 10))
+    
+    # Best model transition matrix
+    plt.subplot(2, 3, 1)
+    plt.imshow(best_model.transmat_, vmin=0, vmax=1)
+    plt.title(f"Best Model Transition Matrix\nBIC: {best_bic:.2f}")
+    plt.colorbar()
+    
+    # Worst model transition matrix
+    plt.subplot(2, 3, 2)
+    plt.imshow(worst_model.transmat_, vmin=0, vmax=1)
+    plt.title(f"Worst Model Transition Matrix\nBIC: {worst_bic:.2f}")
+    plt.colorbar()
+    
+    # Actual transition matrix
+    plt.subplot(2, 3, 3)
+    plt.imshow(trans, vmin=0, vmax=1)
+    plt.title("Actual Transition Matrix")
+    plt.colorbar()
+    
+    # Orient emission matrices to match original
+    best_emis = best_model.emissionprob_
+    worst_emis = worst_model.emissionprob_
+    
+    # Check if we need to flip the best model emission matrix
+    forward_best = np.sum(np.abs(best_emis - emis))
+    backward_best = np.sum(np.abs(best_emis[1::-1, :] - emis))
+    if backward_best < forward_best:
+        best_emis = best_emis[1::-1, :]
+    
+    # Check if we need to flip the worst model emission matrix
+    forward_worst = np.sum(np.abs(worst_emis - emis))
+    backward_worst = np.sum(np.abs(worst_emis[1::-1, :] - emis))
+    if backward_worst < forward_worst:
+        worst_emis = worst_emis[1::-1, :]
+    
+    # Best model emission matrix
+    plt.subplot(2, 3, 4)
+    plt.imshow(best_emis, vmin=0, vmax=1)
+    plt.title(f"Best Model Emission Matrix\nBIC: {best_bic:.2f}")
+    plt.colorbar()
+    
+    # Worst model emission matrix
+    plt.subplot(2, 3, 5)
+    plt.imshow(worst_emis, vmin=0, vmax=1)
+    plt.title(f"Worst Model Emission Matrix\nBIC: {worst_bic:.2f}")
+    plt.colorbar()
+    
+    # Actual emission matrix
+    plt.subplot(2, 3, 6)
+    plt.imshow(emis, vmin=0, vmax=1)
+    plt.title("Actual Emission Matrix")
+    plt.colorbar()
+    
+    plt.tight_layout()
+    plt.show()
+
+# Generate plots to compare best model with actual parameters
 if show_plots:
     plt.figure(figsize=(12, 8))
     plt.subplot(2, 2, 1)
@@ -116,7 +254,7 @@ if show_plots:
     
     plt.subplot(2, 2, 2)
     plt.imshow(TRANS_EST, vmin=0, vmax=1)
-    plt.title("Estimated Transition Matrix")
+    plt.title(f"Best Model Transition Matrix\nBIC: {best_bic:.2f}")
     plt.colorbar()
     
     plt.subplot(2, 2, 3)
@@ -126,7 +264,7 @@ if show_plots:
     
     plt.subplot(2, 2, 4)
     plt.imshow(plot_emis_est, vmin=0, vmax=1)
-    plt.title("Estimated Emission Matrix")
+    plt.title(f"Best Model Emission Matrix\nBIC: {best_bic:.2f}")
     plt.colorbar()
     
     plt.tight_layout()
