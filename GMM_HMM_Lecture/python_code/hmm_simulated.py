@@ -283,23 +283,19 @@ model_actual.transmat_ = trans
 model_actual.emissionprob_ = emis
 model_actual.n_trials = 1
 
-model_est_decode = hmm.MultinomialHMM(n_components=2)
-model_est_decode.startprob_ = np.array([0.5, 0.5])
-model_est_decode.transmat_ = TRANS_EST
-model_est_decode.emissionprob_ = EMIS_EST
-model_est_decode.n_trials = 1
-
 # Get state probabilities
 _, pStates_actual = model_actual.score_samples(X)
-_, pStates_est = model_est_decode.score_samples(X)
+_, pStates_est = best_model.score_samples(X)
+_, pStates_est_worst = worst_model.score_samples(X)
 
 # HMM decode returns PROBABILITIES for being in each state at each timepoint
 # We can just pick the state with the larger probability at each time
 state_estim_actual = (pStates_actual[:, 0] > pStates_actual[:, 1]).astype(int)
 state_estim_est = (pStates_est[:, 0] > pStates_est[:, 1]).astype(int)
+state_estim_est_worst = (pStates_est_worst[:, 0] > pStates_est_worst[:, 1]).astype(int)
 
 # Concatenate estimates for visualization
-all_states = np.vstack([states, state_estim_actual, state_estim_est])
+all_states = np.vstack([states, state_estim_actual, state_estim_est, state_estim_est_worst])
 
 plt.figure(figsize=(12, 6))
 ax1 = plt.subplot(2, 1, 1)
@@ -308,7 +304,9 @@ plt.title('Observations')
 
 ax2 = plt.subplot(2, 1, 2)
 plt.imshow(all_states, **img_kwargs)
-plt.yticks([0, 1, 2], ['Actual', 'Using Actual Emissions', 'Using Estimated Emissions'])
+plt.yticks(
+        [0, 1, 2, 3], 
+        ['Actual', 'Using Actual Emissions', 'Using Estimated Emissions', 'Using Worst Estimated Emissions'])
 plt.title('State Sequences')
 
 # Link x-axes
