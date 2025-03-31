@@ -1,6 +1,16 @@
 """
 Python translation of hmm_simulated.m
-Labelling simulated data using HMM
+Labelling simulated data using Hidden Markov Models (HMM)
+
+This script demonstrates:
+1. Generation of synthetic data from a Hidden Markov Model
+2. Estimation of HMM parameters from the generated data
+3. Comparison of estimated parameters with the true parameters
+4. State sequence decoding using both true and estimated parameters
+
+Hidden Markov Models are probabilistic models where:
+- The system being modeled follows a Markov process with unobservable (hidden) states
+- Each state has a probability distribution over possible output tokens
 """
 
 import numpy as np
@@ -12,47 +22,54 @@ from scipy.special import logsumexp
 # If false, shows only the main plot
 show_plots = True
 
-# Number of repeats for model fitting
+# Number of repeats for model fitting to find the best model
 n_repeats = 10
 
 # Create transitions matrix with strong self-transition probabilities
-trans = np.array([[0.975, 0.025],
-                  [0.025, 0.975]])
+# This matrix defines the probability of transitioning from one state to another
+# High values on diagonal mean states tend to persist for multiple time steps
+trans = np.array([[0.975, 0.025],  # 97.5% chance of staying in state 0, 2.5% chance of transitioning to state 1
+                  [0.025, 0.975]])  # 97.5% chance of staying in state 1, 2.5% chance of transitioning to state 0
 
 # Create very different emissions for easier detection
-emis = np.array([[3/6, 2/6, 1/6, 1/6, 1/6, 1/6],  # State1 emissions
-                 [2/10, 1/10, 1/10, 3/10, 1/10, 1/2]])  # State2 emissions
+# Each row represents a state, each column represents the probability of emitting a particular observation
+emis = np.array([[3/6, 2/6, 1/6, 1/6, 1/6, 1/6],  # State 0 emissions - more uniform
+                 [2/10, 1/10, 1/10, 3/10, 1/10, 1/2]])  # State 1 emissions - more peaked at the last category
 
-# Normalize emission matrix to make sure everything adds up to 1
+# Normalize emission matrix to make sure probabilities sum to 1 for each state
 emis = emis / np.sum(emis, axis=1)[:, np.newaxis]
 
-# Plot the matrices
+# Visualize the transition and emission matrices
 if show_plots:
     img_kwargs = {'interpolation': 'nearest', 'aspect': 'auto'}
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    
+    # Plot transition matrix
     ax1.imshow(trans, **img_kwargs)
-    ax1.set_title('Transition matrix')
+    ax1.set_title('Transition Matrix')
     ax1.set_xlabel('To state')
     ax1.set_ylabel('From state')
+    
+    # Plot emission matrix (transposed for better visualization)
     im = ax2.imshow(emis.T, **img_kwargs, vmin=0, vmax=1)
     cax = fig.add_axes([0.95, 0.1, 0.02, 0.8])
     fig.colorbar(im, cax=cax, label='Probability')
-    ax2.set_title('Emission matrix')
-    ax2.set_xlabel('Category')
-    ax2.set_ylabel('State')
+    ax2.set_title('Emission Matrix')
+    ax2.set_xlabel('State')
+    ax2.set_ylabel('Observation Category')
     plt.show()
 
-# Generate data using hmmlearn
+# Initialize HMM model with known parameters for data generation
 model = hmm.MultinomialHMM(n_components=2, n_iter=100)
-model.startprob_ = np.array([0.5, 0.5])
-model.transmat_ = trans
-model.emissionprob_ = emis
-# Not sure why this has to be set at all...some internal inconsistency?
+model.startprob_ = np.array([0.5, 0.5])  # Equal probability of starting in either state
+model.transmat_ = trans  # Set transition matrix
+model.emissionprob_ = emis  # Set emission matrix
+# Required parameter for MultinomialHMM
 model.n_trials = 1
 
-# Generate sequence
-dat_length = 1000
-X, states = model.sample(dat_length)
+# Generate a sequence of observations and corresponding hidden states
+dat_length = 1000  # Length of sequence to generate
+X, states = model.sample(dat_length)  # X contains observations, states contains true hidden states
 
 if show_plots:
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 6), sharex=True) 
@@ -67,35 +84,52 @@ if show_plots:
     plt.tight_layout()
     plt.show()
 
-# Estimate parameters
-# First we have to estimate the emission and transition matrices
-# We'll assume: no information about the emissions (random values)
-# We'll assume: high self-transition probabilities
+# Parameter Estimation Section
+# In real applications, we don't know the true parameters and need to estimate them from data
+# Here we'll pretend we don't know the true parameters and try to recover them
+
+# Create initial guesses for the model parameters
+# For transition matrix: assume high self-transition probabilities (diagonal-dominant)
 TRANS_GUESS = np.eye(trans.shape[0]) + np.random.rand(*trans.shape) * 0.05
 
-## TRY RANDOM GUESS FOR EMISSIONS VS. MEAN OF DATA
-## AND SEE THE DIFFERENCE
+# For emission matrix: we can try different initialization strategies
 USE_RANDOM_EMIS_GUESS = False
 if USE_RANDOM_EMIS_GUESS:
+    # Strategy 1: Completely random guess
     EMIS_GUESS = np.random.rand(*emis.shape)
     print("Using random guess for emissions")
 else:
+    # Strategy 2: Use the mean of observed data as a starting point (more informed)
+    # This creates identical rows (same emission probabilities for both states) plus some noise
     EMIS_GUESS = np.tile(X.mean(axis=0), (2, 1)) + np.random.rand(*emis.shape) * 0.05 
     print("Using mean of data as guess for emissions")
 
-# Make sure numbers add up to 1
-EMIS_GUESS = EMIS_GUESS / np.sum(EMIS_GUESS, axis=1)[:, np.newaxis]
-TRANS_GUESS = TRANS_GUESS / np.sum(TRANS_GUESS, axis=1)[:, np.newaxis]
+# Normalize guesses to ensure they are valid probability distributions
+EMIS_GUESS = EMIS_GUESS / np.sum(EMIS_GUESS, axis=1)[:, np.newaxis]  # Each row sums to 1
+TRANS_GUESS = TRANS_GUESS / np.sum(TRANS_GUESS, axis=1)[:, np.newaxis]  # Each row sums to 1
 
-# Function to calculate BIC for MultinomialHMM
+# Function to calculate Bayesian Information Criterion (BIC) for model selection
 def calculate_bic(model, X):
-    """Calculate BIC for a fitted HMM model"""
-    # Get log likelihood
+    """
+    Calculate BIC for a fitted HMM model.
+    
+    BIC = -2 * log-likelihood + n_params * log(n_samples)
+    
+    Lower BIC values indicate better models (good fit with fewer parameters).
+    
+    Args:
+        model: Fitted HMM model
+        X: Observation data
+        
+    Returns:
+        bic: BIC value for the model
+    """
+    # Get log likelihood of the data given the model
     log_likelihood = model.score(X)
     
-    # Calculate number of parameters
-    n_components = model.n_components
-    n_features = model.emissionprob_.shape[1]
+    # Calculate number of free parameters in the model
+    n_components = model.n_components  # Number of hidden states
+    n_features = model.emissionprob_.shape[1]  # Number of possible observations
     
     # Parameters: transition probs + emission probs + initial probs - constraints
     # Constraints: each row of transition and emission matrices sums to 1
@@ -107,15 +141,27 @@ def calculate_bic(model, X):
     
     return bic
 
-# Function to perform multiple repeats of model fitting
+# Function to perform multiple model fits with different initializations
 def perform_multiple_fits(X, n_repeats=10):
-    """Perform multiple repeats of model fitting and return models with their BIC values"""
+    """
+    Perform multiple repeats of model fitting with different random initializations
+    and return all models with their BIC values.
+    
+    This helps avoid local optima in the parameter estimation process.
+    
+    Args:
+        X: Observation data
+        n_repeats: Number of times to fit the model with different initializations
+        
+    Returns:
+        models_with_bic: List of (model, bic_value) tuples
+    """
     models_with_bic = []
     
     for i in range(n_repeats):
         # Create a new model with random initialization
         model = hmm.MultinomialHMM(n_components=2, n_iter=1000)
-        model.startprob_ = np.array([0.5, 0.5])
+        model.startprob_ = np.array([0.5, 0.5])  # Equal initial probabilities
         
         # Random initialization for transition matrix with high self-transition
         trans_guess = np.eye(2) + np.random.rand(2, 2) * 0.05
@@ -124,20 +170,22 @@ def perform_multiple_fits(X, n_repeats=10):
         
         # Random initialization for emission matrix
         if USE_RANDOM_EMIS_GUESS:
-            emis_guess = np.random.rand(2, 6)
+            emis_guess = np.random.rand(2, 6)  # Completely random
         else:
+            # Use data mean as starting point with some noise
             emis_guess = np.tile(X.mean(axis=0), (2, 1)) + np.random.rand(2, 6) * 0.05
         
+        # Normalize to get valid probability distributions
         emis_guess = emis_guess / np.sum(emis_guess, axis=1)[:, np.newaxis]
         model.emissionprob_ = emis_guess
         
-        # Fit the model
+        # Fit the model to the data (estimate parameters)
         model.fit(X)
         
-        # Calculate BIC
+        # Calculate BIC to evaluate model quality
         bic_value = calculate_bic(model, X)
         
-        # Store model and BIC
+        # Store model and its BIC value
         models_with_bic.append((model, bic_value))
         
         print(f"Repeat {i+1}/{n_repeats} - BIC: {bic_value:.2f}")
